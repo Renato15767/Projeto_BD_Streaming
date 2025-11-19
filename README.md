@@ -1,183 +1,253 @@
-# Plataforma de Streaming
+# Plataforma de Streaming - STREAMIX
 
-Este é o banco de dados do projeto STREAMIX, uma plataforma de streaming desenvolvida em MySQL/MariaDB. Basicamente, o sistema cuida de tudo relacionado a usuários, assinaturas, catálogo de conteúdo e histórico de reprodução.
+Projeto de banco de dados para plataforma de streaming utilizando arquitetura híbrida com MySQL/MariaDB (SQL) e MongoDB (NoSQL).
 
-## O que tem aqui
+## Índice
 
-O banco foi pensado para suportar uma plataforma de streaming completa. Tem 9 tabelas principais que cobrem:
+- [Visão Geral](#visão-geral)
+- [Arquitetura](#arquitetura)
+- [Estrutura do Projeto](#estrutura-do-projeto)
+- [Banco de Dados SQL](#banco-de-dados-sql)
+- [Banco de Dados NoSQL](#banco-de-dados-nosql)
+- [Instalação](#instalação)
+- [Estrutura de Dados](#estrutura-de-dados)
 
-- Usuários e perfis (cada usuário pode ter vários perfis, tipo Netflix)
-- Planos de assinatura e controle de pagamentos
-- Catálogo de filmes e séries (com temporadas e episódios)
-- Histórico do que cada perfil assistiu
-- Controle de assinaturas e status
+## Visão Geral
 
-## Tecnologias usadas
+O STREAMIX é um sistema de gerenciamento de plataforma de streaming que utiliza uma arquitetura híbrida para otimizar performance e escalabilidade. O MySQL armazena dados transacionais e relacionais, enquanto o MongoDB gerencia dados não relacionais de alta performance.
+
+### Funcionalidades
+
+- Gestão de usuários e perfis (múltiplos perfis por usuário, incluindo perfis infantis)
+- Planos de assinatura (5 planos: Mobile, Básico, Padrão, Premium, Família)
+- Controle financeiro (assinaturas e pagamentos)
+- Catálogo de conteúdo (filmes e séries com temporadas e episódios)
+- Histórico de reprodução
+- Sistema de avaliações e comentários
+- Listas personalizadas (favoritos, watchlists)
+- Sistema de recomendações
+- Logs de atividades
+
+## Arquitetura
+
+### Divisão de Responsabilidades
+
+**MySQL (SQL)** - Dados transacionais:
+- Usuários, perfis, assinaturas e pagamentos
+- Catálogo estruturado (conteúdos, temporadas, episódios)
+- Histórico de reprodução básico
+- Dados que exigem integridade referencial e transações ACID
+
+**MongoDB (NoSQL)** - Dados não relacionais:
+- Avaliações e comentários (estrutura flexível)
+- Listas personalizadas dos usuários
+- Logs de atividades (alta frequência de escrita)
+- Dados de recomendação por perfil
+
+### Relacionamentos
+
+Os bancos se relacionam através de chaves de referência. O MongoDB armazena `id_usuario`, `id_perfil`, `id_conteudo` que referenciam as tabelas do MySQL. A aplicação é responsável por manter a consistência entre os dois bancos.
+
+## Estrutura do Projeto
+
+```
+Projeto_BD_Streaming/
+├── README.md
+├── Documentação de Requisitos - Plataforma de Streaming Personalizada.docx
+├── interface_usuario.png
+│
+├── SQL/
+│   ├── mysql_streaming_schema.sql          # Script principal de criação
+│   ├── banco.sql                           # Dump completo
+│   ├── modelagem_bd.pdf
+│   ├── Inserts Queries/                    # Dados de exemplo
+│   │   ├── planos.sql
+│   │   ├── usuarios.sql
+│   │   ├── perfis.sql
+│   │   ├── assinaturas.sql
+│   │   ├── pagamentos.sql
+│   │   ├── conteudos.sql
+│   │   ├── temporadas.sql
+│   │   ├── episodios.sql
+│   │   └── historico_reproducao.sql
+│   └── Views/                              # Views, Procedures e Triggers
+│       ├── View.sql
+│       ├── Inner Join.sql
+│       ├── Storaged Procedure.sql
+│       └── Trigger.sql
+│
+└── NoSQL/                                  # MongoDB
+    ├── prelude.json
+    ├── avaliacoes.bson
+    ├── avaliacoes.metadata.json
+    ├── listas_usuarios.bson
+    ├── listas_usuarios.metadata.json
+    ├── log_atividades.bson
+    ├── log_atividades.metadata.json
+    ├── perfis_recomendacao.bson
+    └── perfis_recomendacao.metadata.json
+```
+
+## Banco de Dados SQL
+
+### Tabelas Principais
+
+**planos** - Planos de assinatura
+- id_plano, nome, descricao, preco, qualidade_video, telas_simultaneas
+
+**usuarios** - Usuários da plataforma
+- id_usuario, nome, email (UNIQUE), senha_hash, data_cadastro, data_nascimento, id_plano_ativo
+
+**perfis** - Perfis dos usuários (múltiplos por usuário)
+- id_perfil, id_usuario (FK), nome_perfil, avatar_url, tipo_perfil (ADULTO/INFANTIL)
+
+**assinaturas** - Histórico de assinaturas
+- id_assinatura, id_usuario (FK), id_plano (FK), data_inicio, data_fim, status_assinatura
+
+**pagamentos** - Registro de pagamentos
+- id_pagamento, id_assinatura (FK), valor, data_pagamento, metodo_pagamento, status_pagamento
+
+**conteudos** - Catálogo de filmes e séries
+- id_conteudo, titulo, descricao, ano_lancamento, classificacao_indicativa, duracao_minutos, genero, tipo_conteudo (FILME/SERIE)
+
+**temporadas** - Temporadas das séries
+- id_temporada, id_serie (FK), numero_temporada, titulo_temporada, ano_lancamento
+
+**episodios** - Episódios das temporadas
+- id_episodio, id_temporada (FK), numero_episodio, titulo_episodio, descricao, duracao_minutos, data_lancamento
+
+**historico_reproducao** - Histórico de visualizações
+- id_historico, id_perfil (FK), id_conteudo (FK, nullable), id_episodio (FK, nullable), progresso_segundos, ultima_visualizacao, status_reproducao
+
+### Relacionamentos
+
+- usuarios (1) → (N) perfis
+- usuarios (1) → (N) assinaturas
+- planos (1) → (N) assinaturas
+- planos (1) → (N) usuarios (id_plano_ativo)
+- assinaturas (1) → (N) pagamentos
+- conteudos (1) → (N) temporadas (se tipo_conteudo = 'SERIE')
+- temporadas (1) → (N) episodios
+- perfis (1) → (N) historico_reproducao
+- conteudos (1) → (N) historico_reproducao
+- episodios (1) → (N) historico_reproducao
+
+### Integridade Referencial
+
+- CASCADE: Deletar usuário remove perfis e histórico
+- CASCADE: Deletar perfil remove histórico
+- CASCADE: Deletar série remove temporadas e episódios
+- UNIQUE: Email único por usuário
+- FOREIGN KEYS: Previnem dados órfãos
+
+### Views, Procedures e Triggers
+
+**vw_RelatorioFaturamento** - View que une pagamentos, assinaturas, usuários e planos para relatórios financeiros.
+
+**sp_CadastrarUsuarioComPerfil** - Procedure que cria usuário e perfil padrão em transação única.
+
+**trg_AtualizaUltimaVisualizacao** - Trigger que atualiza automaticamente `ultima_visualizacao` quando `progresso_segundos` é alterado.
+
+## Banco de Dados NoSQL
+
+### Coleções
+
+**avaliacoes** - Avaliações e comentários dos usuários
+- Estrutura: id_usuario, id_perfil, id_conteudo, id_episodio (opcional), nota (1-5), comentario, data_avaliacao, curtidas, editado
+
+**listas_usuarios** - Listas personalizadas (favoritos, watchlists)
+- Estrutura: id_usuario, id_perfil, nome_lista, tipo_lista (WATCHLIST/FAVORITOS/CUSTOMIZADA), conteudos (array), publica, data_criacao, data_atualizacao
+
+**log_atividades** - Logs de atividades dos usuários
+- Estrutura: id_usuario, id_perfil, tipo_atividade, id_conteudo (opcional), id_episodio (opcional), acao, timestamp, detalhes (objeto flexível), ip_address, user_agent
+
+**perfis_recomendacao** - Dados de recomendação por perfil
+- Estrutura: id_perfil, algoritmo, recomendacoes (array com id_conteudo, score, motivo), preferencias (objeto), data_atualizacao, versao_algoritmo
+
+### Relacionamentos com SQL
+
+As coleções MongoDB referenciam tabelas SQL através de:
+- id_usuario → usuarios.id_usuario
+- id_perfil → perfis.id_perfil
+- id_conteudo → conteudos.id_conteudo
+- id_episodio → episodios.id_episodio
+
+A aplicação deve validar a existência desses IDs no MySQL antes de inserir no MongoDB.
+
+## Instalação
+
+### Pré-requisitos
 
 - MySQL 8.0+ ou MariaDB 10.4+
-- Engine InnoDB
-- Charset UTF8MB4 (para suportar caracteres especiais)
+- MongoDB 4.4+
 
-## Estrutura do banco
+### MySQL
 
-São 9 tabelas no total:
+1. Criar banco de dados:
+```sql
+CREATE DATABASE streaming;
+USE streaming;
+```
 
-1. `planos` - Os planos de assinatura disponíveis
-2. `usuarios` - Conta principal do usuário
-3. `perfis` - Perfis individuais (um usuário pode ter vários)
-4. `assinaturas` - Histórico de assinaturas
-5. `pagamentos` - Registro dos pagamentos
-6. `conteudos` - Filmes e séries
-7. `temporadas` - Temporadas das séries
-8. `episodios` - Episódios
-9. `historico_reproducao` - O que cada perfil assistiu
+2. Executar script principal:
+```bash
+mysql -u usuario -p streaming < SQL/mysql_streaming_schema.sql
+```
 
-## Detalhes das tabelas
+3. (Opcional) Popular com dados de exemplo:
+```bash
+mysql -u usuario -p streaming < SQL/Inserts\ Queries/planos.sql
+mysql -u usuario -p streaming < SQL/Inserts\ Queries/usuarios.sql
+mysql -u usuario -p streaming < SQL/Inserts\ Queries/perfis.sql
+mysql -u usuario -p streaming < SQL/Inserts\ Queries/assinaturas.sql
+mysql -u usuario -p streaming < SQL/Inserts\ Queries/pagamentos.sql
+mysql -u usuario -p streaming < SQL/Inserts\ Queries/conteudos.sql
+mysql -u usuario -p streaming < SQL/Inserts\ Queries/temporadas.sql
+mysql -u usuario -p streaming < SQL/Inserts\ Queries/episodios.sql
+mysql -u usuario -p streaming < SQL/Inserts\ Queries/historico_reproducao.sql
+```
 
-### planos
+4. (Opcional) Criar Views, Procedures e Triggers:
+```bash
+mysql -u usuario -p streaming < SQL/Views/View.sql
+mysql -u usuario -p streaming < SQL/Views/Storaged\ Procedure.sql
+mysql -u usuario -p streaming < SQL/Views/Trigger.sql
+```
 
-Guarda os planos de assinatura (Básico, Premium, etc).
+### MongoDB
 
-| Campo | Tipo | O que é |
-|-------|------|---------|
-| id_plano | INT | Chave primária |
-| nome | VARCHAR(100) | Nome do plano |
-| descricao | TEXT | Descrição do plano |
-| preco | DECIMAL(10,2) | Preço |
-| qualidade_video | VARCHAR(50) | Qualidade (HD, 4K, etc) |
-| telas_simultaneas | INT | Quantas telas podem assistir ao mesmo tempo |
+1. Restaurar coleções:
+```bash
+mongorestore --db streaming NoSQL/
+```
 
-### usuarios
+2. Verificar:
+```javascript
+use streaming
+show collections
+```
 
-A tabela principal de usuários.
+## Estrutura de Dados
 
-| Campo | Tipo | O que é |
-|-------|------|---------|
-| id_usuario | INT | Chave primária |
-| nome | VARCHAR(255) | Nome do usuário |
-| email | VARCHAR(255) | Email (único) |
-| senha_hash | VARCHAR(255) | Hash da senha (nunca texto plano!) |
-| data_cadastro | DATETIME | Quando se cadastrou |
-| data_nascimento | DATE | Data de nascimento |
-| id_plano_ativo | INT | Plano atual (FK para planos) |
+### Dados de Exemplo (SQL)
 
-### perfis
+- 5 planos de assinatura
+- 100 usuários
+- 122 perfis
+- 100 assinaturas
+- 111 pagamentos
+- 104 conteúdos (68 filmes, 36 séries)
+- Múltiplas temporadas e episódios
+- 69 registros de histórico de reprodução
 
-Perfis dentro de uma conta. Um usuário pode ter vários perfis (tipo família).
+### Dados de Exemplo (NoSQL)
 
-| Campo | Tipo | O que é |
-|-------|------|---------|
-| id_perfil | INT | Chave primária |
-| id_usuario | INT | Dono do perfil (FK) |
-| nome_perfil | VARCHAR(100) | Nome do perfil |
-| avatar_url | VARCHAR(255) | URL da foto do perfil |
-| tipo_perfil | ENUM | 'ADULTO' ou 'INFANTIL' |
+- Avaliações de usuários
+- Listas personalizadas
+- Logs de atividades
+- Dados de recomendação
 
-### assinaturas
-
-Histórico de assinaturas. Um usuário pode ter várias assinaturas ao longo do tempo.
-
-| Campo | Tipo | O que é |
-|-------|------|---------|
-| id_assinatura | INT | Chave primária |
-| id_usuario | INT | Usuário (FK) |
-| id_plano | INT | Plano contratado (FK) |
-| data_inicio | DATE | Quando começou |
-| data_fim | DATE | Quando terminou (NULL se ainda está ativa) |
-| status_assinatura | ENUM | 'ATIVA', 'CANCELADA' ou 'EXPIRADA' |
-
-### pagamentos
-
-Registro de todos os pagamentos feitos.
-
-| Campo | Tipo | O que é |
-|-------|------|---------|
-| id_pagamento | INT | Chave primária |
-| id_assinatura | INT | Assinatura relacionada (FK) |
-| valor | DECIMAL(10,2) | Valor pago |
-| data_pagamento | DATETIME | Quando foi pago |
-| metodo_pagamento | VARCHAR(100) | Como pagou (cartão, boleto, etc) |
-| status_pagamento | ENUM | 'APROVADO', 'RECUSADO' ou 'PENDENTE' |
-
-### conteudos
-
-Catálogo de filmes e séries. A mesma tabela serve para os dois tipos.
-
-| Campo | Tipo | O que é |
-|-------|------|---------|
-| id_conteudo | INT | Chave primária |
-| titulo | VARCHAR(255) | Título |
-| descricao | TEXT | Sinopse |
-| ano_lancamento | INT | Ano que foi lançado |
-| classificacao_indicativa | VARCHAR(10) | Classificação (L, 10, 12, 14, 16, 18) |
-| duracao_minutos | INT | Duração (só faz sentido para filmes) |
-| genero | VARCHAR(100) | Gênero |
-| tipo_conteudo | ENUM | 'FILME' ou 'SERIE' |
-
-### temporadas
-
-Temporadas das séries. Só faz sentido se o conteúdo for do tipo SERIE.
-
-| Campo | Tipo | O que é |
-|-------|------|---------|
-| id_temporada | INT | Chave primária |
-| id_serie | INT | Série (FK para conteudos) |
-| numero_temporada | INT | Número da temporada |
-| titulo_temporada | VARCHAR(255) | Título da temporada |
-| ano_lancamento | INT | Ano que foi lançada |
-
-### episodios
-
-Episódios de cada temporada.
-
-| Campo | Tipo | O que é |
-|-------|------|---------|
-| id_episodio | INT | Chave primária |
-| id_temporada | INT | Temporada (FK) |
-| numero_episodio | INT | Número do episódio |
-| titulo_episodio | VARCHAR(255) | Título |
-| descricao | TEXT | Sinopse do episódio |
-| duracao_minutos | INT | Duração |
-| data_lancamento | DATE | Quando foi lançado |
-
-### historico_reproducao
-
-O que cada perfil assistiu. Guarda tanto filmes quanto episódios.
-
-| Campo | Tipo | O que é |
-|-------|------|---------|
-| id_historico | INT | Chave primária |
-| id_perfil | INT | Perfil que assistiu (FK) |
-| id_conteudo | INT | Filme assistido (FK, NULL se for episódio) |
-| id_episodio | INT | Episódio assistido (FK, NULL se for filme) |
-| progresso_segundos | INT | Em que segundo parou de assistir |
-| ultima_visualizacao | DATETIME | Última vez que assistiu |
-| status_reproducao | ENUM | 'ASSISTINDO' ou 'CONCLUIDO' |
-
-## Como as tabelas se relacionam
-
-A estrutura é bem direta:
-
-- Um usuário tem vários perfis
-- Um usuário pode ter várias assinaturas (histórico)
-- Uma assinatura tem vários pagamentos
-- Um conteúdo (série) tem várias temporadas
-- Uma temporada tem vários episódios
-- Um perfil tem vários registros de histórico (pode ser filme ou episódio)
-
-### Integridade
-
-Algumas coisas importantes sobre como o banco funciona:
-
-- Se você deletar um usuário, os perfis dele são deletados também (CASCADE)
-- Se deletar um perfil, o histórico dele some também
-- Se deletar uma série, temporadas e episódios são deletados
-- Email é único (não pode ter dois usuários com o mesmo email)
-- As chaves estrangeiras garantem que não dá pra criar dados "órfãos"
-
-## Requisitos funcionais
-
-O sistema atende aos seguintes requisitos (conforme a documentação):
+## Requisitos Funcionais
 
 - RF01: Cadastro e autenticação de usuários
 - RF02: Validação de login e plano ativo em tempo real
@@ -185,34 +255,39 @@ O sistema atende aos seguintes requisitos (conforme a documentação):
 - RF04: Registro de histórico de reprodução
 - RF08: Relatórios financeiros e de assinaturas
 
-## Arquivos do projeto
-
-- `mysql_streaming_schema.sql` - Script limpo para criar o banco (recomendado)
-- `banco.sql` - Dump completo (inclui configurações do MySQL)
-- `modelagem_bd.pdf` - Diagrama visual do banco
-- `Documentação de Requisitos - Plataforma de Streaming Personalizada.docx` - Documentação completa
-- `interface_usuario.png` - Mockup da interface
-
 ## Segurança
 
-Algumas coisas que foram pensadas:
+### MySQL
 
-- Senhas são armazenadas como hash (nunca em texto plano)
+- Senhas armazenadas como hash (nunca texto plano)
 - Validação de plano ativo em tempo real
-- Perfis infantis podem ter restrições de conteúdo
-- Integridade referencial garantida pelas foreign keys
+- Perfis infantis com restrições de conteúdo
+- Integridade referencial via foreign keys
+- Views para controle de acesso
 
-## O que falta (ou poderia melhorar)
+### MongoDB
 
-Algumas ideias para o futuro:
+- Autenticação e autorização configuradas
+- Validação de schema via validators
+- Índices apropriados para performance
+- TLS/SSL para conexões
+- Backups regulares
 
-- Sistema de favoritos/minha lista
-- Avaliações e comentários
-- Recomendações baseadas no que a pessoa assiste
-- Suporte a múltiplos idiomas
-- Notificações
-- Dashboard para administradores
+## Notas Importantes
 
-## Sobre o projeto
+1. O campo `senha_hash` deve sempre conter um hash (bcrypt, SHA-256). Nunca armazenar senhas em texto plano.
 
-Este projeto foi desenvolvido como parte de um sistema completo de plataforma de streaming. O foco aqui foi na modelagem e estruturação do banco de dados MySQL/MariaDB, pensando em escalabilidade e organização dos dados.
+2. Perfis do tipo 'INFANTIL' devem ter restrições baseadas na `classificacao_indicativa` dos conteúdos.
+
+3. No `historico_reproducao`, um registro referencia OU `id_conteudo` OU `id_episodio`, nunca ambos.
+
+4. No MySQL, `data_fim` em `assinaturas` é NULL quando ativa. Preencher ao cancelar ou expirar.
+
+5. No MongoDB, sempre validar a existência dos IDs no MySQL antes de inserir.
+
+6. Implementar lógica de limpeza ao deletar registros no MySQL (cascata manual no MongoDB).
+
+7. Criar índices apropriados no MongoDB:
+   - avaliacoes: { id_usuario: 1, id_conteudo: 1 }
+   - log_atividades: { timestamp: -1 } (com TTL se necessário)
+   - perfis_recomendacao: { id_perfil: 1 }
