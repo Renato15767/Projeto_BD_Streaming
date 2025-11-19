@@ -1,5 +1,5 @@
-#create database streaming;
-#use streaming;
+create database streaming;
+use streaming;
 
 -- Tabela para os planos de assinatura
 CREATE TABLE planos (
